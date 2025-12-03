@@ -1,0 +1,32 @@
+{
+  "name": "solana-poker-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:program": "cd .. && cargo build-sbf",
+    "deploy": "npm run build:program && solana program deploy ../target/deploy/solana_poker.so --url localhost",
+    "validator": "solana-test-validator --reset",
+    "validator:program": "solana-test-validator --reset --bpf-program $(solana address -k ../target/deploy/solana_poker-keypair.json) ../target/deploy/solana_poker.so"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "^3.0.0",
+    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "svelte": "^5.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.4.0",
+    "vite-plugin-node-polyfills": "^0.24.0"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "@solana/spl-token": "^0.4.0",
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^6.0.0",
+    "buffer": "^6.0.3",
+    "js-sha3": "^0.9.3"
+  },
+  "type": "module"
+}
