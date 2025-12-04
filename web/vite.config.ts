@@ -24,5 +24,10 @@ export default defineConfig({
 				global: 'globalThis'
 			}
 		}
+	},
+	test: {
+		include: ['src/**/*.test.ts'],
+		environment: 'node',
+		globals: true
 	}
 });

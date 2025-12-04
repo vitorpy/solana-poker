@@ -1,11 +1,17 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import Window from './Window.svelte';
 	import Taskbar from './Taskbar.svelte';
 	import PokerTable from './PokerTable.svelte';
 	import Wallet from './Wallet.svelte';
 	import TableLobby from './TableLobby.svelte';
-	import { isInGame, gameId } from '$lib/game/store';
+	import { game, isInGame, gameId } from '$lib/game/store';
+
+	// Reset any leftover game state when landing on the home page
+	onMount(() => {
+		game.leaveGame();
+	});
 
 	interface WindowState {
 		id: string;

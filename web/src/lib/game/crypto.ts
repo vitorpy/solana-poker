@@ -6,7 +6,8 @@
  */
 
 import { bn254 } from '@noble/curves/bn254.js';
-import { keccak256 as keccak256Hash } from 'js-sha3';
+import pkg from 'js-sha3';
+const { keccak256: keccak256Hash } = pkg;
 
 // Type for point tuple (as stored on-chain)
 export interface PointTuple {
@@ -14,11 +15,11 @@ export interface PointTuple {
 	qy: string;
 }
 
-// The bn254 curve order (n) - also called 'r' in the params
-export const CURVE_ORDER = bn254.params.r;
+// The bn254 curve order (n) - scalar field order
+export const CURVE_ORDER = bn254.G1.Point.Fn.ORDER;
 
 // bn254 generator point G1
-const G1 = bn254.G1.ProjectivePoint.BASE;
+const G1 = bn254.G1.Point.BASE;
 
 // Field prime for bn254
 const BN254_FIELD_PRIME = BigInt(
@@ -30,9 +31,9 @@ const HALF_FIELD_PRIME = BN254_FIELD_PRIME / 2n;
  * Wrapper class for bn254 G1 points that provides a consistent interface
  */
 export class Bn254Point {
-	private point: typeof bn254.G1.ProjectivePoint.BASE;
+	private point: typeof bn254.G1.Point.BASE;
 
-	constructor(point: typeof bn254.G1.ProjectivePoint.BASE) {
+	constructor(point: typeof bn254.G1.Point.BASE) {
 		this.point = point;
 	}
 
@@ -41,7 +42,7 @@ export class Bn254Point {
 	}
 
 	static fromCoords(x: bigint, y: bigint): Bn254Point {
-		return new Bn254Point(bn254.G1.ProjectivePoint.fromAffine({ x, y }));
+		return new Bn254Point(bn254.G1.Point.fromAffine({ x, y }));
 	}
 
 	static fromHex(x: string, y: string): Bn254Point {
@@ -67,14 +68,14 @@ export class Bn254Point {
 	}
 
 	isInfinity(): boolean {
-		return this.point.equals(bn254.G1.ProjectivePoint.ZERO);
+		return this.point.equals(bn254.G1.Point.ZERO);
 	}
 
 	eq(other: Bn254Point): boolean {
 		return this.point.equals(other.point);
 	}
 
-	toRaw(): typeof bn254.G1.ProjectivePoint.BASE {
+	toRaw(): typeof bn254.G1.Point.BASE {
 		return this.point;
 	}
 }
@@ -223,9 +224,13 @@ export function modInverse(a: string): string {
 
 /**
  * Unlock a single card by multiplying by the modular inverse of each lock key
+ * NOTE: PointTuple stores coordinates as DECIMAL strings (base 10)
  */
 export function unlockCard(lockedCard: PointTuple, keys: string[]): Bn254Point {
-	let card = Bn254Point.fromHex(lockedCard.qx, lockedCard.qy);
+	// PointTuple stores decimal strings, not hex
+	const xBig = BigInt(lockedCard.qx);
+	const yBig = BigInt(lockedCard.qy);
+	let card = Bn254Point.fromCoords(xBig, yBig);
 
 	for (const key of keys) {
 		const keyBig = BigInt(key.toString().replace('0x', '0x') || '0');
@@ -326,9 +331,13 @@ export function pointsToTuples(points: Bn254Point[]): PointTuple[] {
 
 /**
  * Transform a tuple back to an EC point
+ * NOTE: Tuples store coordinates as DECIMAL strings (base 10)
  */
 export function tupleToPoint(tp: PointTuple): Bn254Point {
-	return Bn254Point.fromHex(tp.qx, tp.qy);
+	// Tuples store decimal strings, not hex
+	const xBig = BigInt(tp.qx);
+	const yBig = BigInt(tp.qy);
+	return Bn254Point.fromCoords(xBig, yBig);
 }
 
 /**

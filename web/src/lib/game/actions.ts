@@ -309,7 +309,10 @@ export interface GameStateData {
 	playerCardsOpened: number;
 	numSubmittedHands: number;
 	pot: bigint;
+	potSize: bigint;
 	currentCallAmount: bigint;
+	currentBet: bigint;
+	lastRaise: bigint;
 	lastToCall: PublicKey;
 	isEverybodyAllIn: boolean;
 	potClaimed: boolean;
@@ -445,11 +448,18 @@ function deserializeGameState(data: Buffer): GameStateData {
 	const pot = data.readBigUInt64LE(offset);
 	offset += 8;
 
+	// Note: pot_size, current_bet, last_raise are NOT serialized on-chain
+	// They are derived/aliased values in the Rust from_bytes implementation
 	const currentCallAmount = data.readBigUInt64LE(offset);
 	offset += 8;
 
 	const lastToCall = new PublicKey(data.subarray(offset, offset + 32));
 	offset += 32;
+
+	// Compute aliased values (matching Rust from_bytes behavior)
+	const potSize = pot;
+	const currentBet = currentCallAmount;
+	const lastRaise = BigInt(0);
 
 	const isEverybodyAllIn = data.readUInt8(offset) !== 0;
 	offset += 1;
@@ -484,7 +494,10 @@ function deserializeGameState(data: Buffer): GameStateData {
 		playerCardsOpened,
 		numSubmittedHands,
 		pot,
+		potSize,
 		currentCallAmount,
+		currentBet,
+		lastRaise,
 		lastToCall,
 		isEverybodyAllIn,
 		potClaimed,
@@ -695,7 +708,7 @@ import {
 
 // Constants for split transactions
 const CARDS_PER_PART = 26;
-const COMPRESSED_POINT_SIZE = 32;
+const COMPRESSED_POINT_SIZE = 32; // arkworks compressed format
 
 /**
  * Build instruction with discriminator + data
@@ -760,11 +773,11 @@ export async function mapDeckPart1Action(
 	const accounts = deriveAllGameAccounts(gameId, PROGRAM_ID);
 	const [playerState] = derivePlayerState(gameId, player.publicKey, PROGRAM_ID);
 
-	// Build data: 26 compressed EC points
+	// Build data: 26 compressed EC points (32 bytes each)
 	const data = Buffer.alloc(CARDS_PER_PART * COMPRESSED_POINT_SIZE);
 	for (let i = 0; i < CARDS_PER_PART; i++) {
-		const compressed = compressPoint(workDeck[i]);
-		Buffer.from(compressed).copy(data, i * COMPRESSED_POINT_SIZE);
+		const pointBytes = compressPoint(workDeck[i]);
+		Buffer.from(pointBytes).copy(data, i * COMPRESSED_POINT_SIZE);
 	}
 
 	const ix = new TransactionInstruction({
@@ -799,13 +812,13 @@ export async function mapDeckPart2Action(
 	const accounts = deriveAllGameAccounts(gameId, PROGRAM_ID);
 	const [playerState] = derivePlayerState(gameId, player.publicKey, PROGRAM_ID);
 
-	// Build data: 26 compressed EC points
+	// Build data: 26 compressed EC points (32 bytes each)
 	const remainingCards = 52 - CARDS_PER_PART;
 	const data = Buffer.alloc(remainingCards * COMPRESSED_POINT_SIZE);
 	for (let i = 0; i < remainingCards; i++) {
 		const cardIndex = CARDS_PER_PART + i;
-		const compressed = compressPoint(workDeck[cardIndex]);
-		Buffer.from(compressed).copy(data, i * COMPRESSED_POINT_SIZE);
+		const pointBytes = compressPoint(workDeck[cardIndex]);
+		Buffer.from(pointBytes).copy(data, i * COMPRESSED_POINT_SIZE);
 	}
 
 	const ix = new TransactionInstruction({
@@ -853,11 +866,11 @@ export async function shufflePart1Action(
 	const accounts = deriveAllGameAccounts(gameId, PROGRAM_ID);
 	const [playerState] = derivePlayerState(gameId, player.publicKey, PROGRAM_ID);
 
-	// Build data: 26 compressed points
+	/// Build data: 26 compressed points (32 bytes each)
 	const data = Buffer.alloc(CARDS_PER_PART * COMPRESSED_POINT_SIZE);
 	for (let i = 0; i < CARDS_PER_PART; i++) {
-		const compressed = compressPoint(shuffledDeck[i]);
-		Buffer.from(compressed).copy(data, i * COMPRESSED_POINT_SIZE);
+		const pointBytes = compressPoint(shuffledDeck[i]);
+		Buffer.from(pointBytes).copy(data, i * COMPRESSED_POINT_SIZE);
 	}
 
 	const ix = new TransactionInstruction({
@@ -893,13 +906,13 @@ export async function shufflePart2Action(
 	const accounts = deriveAllGameAccounts(gameId, PROGRAM_ID);
 	const [playerState] = derivePlayerState(gameId, player.publicKey, PROGRAM_ID);
 
-	// Build data: 26 compressed points
+	/// Build data: 26 compressed points (32 bytes each)
 	const remainingCards = 52 - CARDS_PER_PART;
 	const data = Buffer.alloc(remainingCards * COMPRESSED_POINT_SIZE);
 	for (let i = 0; i < remainingCards; i++) {
 		const cardIndex = CARDS_PER_PART + i;
-		const compressed = compressPoint(shuffledDeck[cardIndex]);
-		Buffer.from(compressed).copy(data, i * COMPRESSED_POINT_SIZE);
+		const pointBytes = compressPoint(shuffledDeck[cardIndex]);
+		Buffer.from(pointBytes).copy(data, i * COMPRESSED_POINT_SIZE);
 	}
 
 	const ix = new TransactionInstruction({
@@ -956,11 +969,11 @@ export async function lockPart1Action(
 	const accounts = deriveAllGameAccounts(gameId, PROGRAM_ID);
 	const [playerState] = derivePlayerState(gameId, player.publicKey, PROGRAM_ID);
 
-	// Build data: 26 compressed points
+	/// Build data: 26 compressed points (32 bytes each)
 	const data = Buffer.alloc(CARDS_PER_PART * COMPRESSED_POINT_SIZE);
 	for (let i = 0; i < CARDS_PER_PART; i++) {
-		const compressed = compressPoint(lockedDeck[i]);
-		Buffer.from(compressed).copy(data, i * COMPRESSED_POINT_SIZE);
+		const pointBytes = compressPoint(lockedDeck[i]);
+		Buffer.from(pointBytes).copy(data, i * COMPRESSED_POINT_SIZE);
 	}
 
 	const ix = new TransactionInstruction({
@@ -996,13 +1009,13 @@ export async function lockPart2Action(
 	const accounts = deriveAllGameAccounts(gameId, PROGRAM_ID);
 	const [playerState] = derivePlayerState(gameId, player.publicKey, PROGRAM_ID);
 
-	// Build data: 26 compressed points
+	/// Build data: 26 compressed points (32 bytes each)
 	const remainingCards = 52 - CARDS_PER_PART;
 	const data = Buffer.alloc(remainingCards * COMPRESSED_POINT_SIZE);
 	for (let i = 0; i < remainingCards; i++) {
 		const cardIndex = CARDS_PER_PART + i;
-		const compressed = compressPoint(lockedDeck[cardIndex]);
-		Buffer.from(compressed).copy(data, i * COMPRESSED_POINT_SIZE);
+		const pointBytes = compressPoint(lockedDeck[cardIndex]);
+		Buffer.from(pointBytes).copy(data, i * COMPRESSED_POINT_SIZE);
 	}
 
 	const ix = new TransactionInstruction({
